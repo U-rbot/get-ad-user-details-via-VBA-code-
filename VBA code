@@ -1,0 +1,162 @@
+Option Explicit
+
+' Update Employee Information
+Public Sub UpdateEmployeeInformation(ByVal strUserId As String)
+    Dim objLdap As Object
+    Dim strLdapDomain As String
+    Dim objLdapConnection As Object
+    Dim objLdapCommand As Object
+    Dim objLdapRecordSet As Object
+
+    Dim objEmployeeName As Variant
+    Dim objEmployeeNumber As Variant
+    Dim objTitle As Variant
+    Dim objDepartment As Variant
+    Dim objWorkspace As Variant
+
+    ' Connect to ActiveDirectory (AD) using LDAP.
+    On Error Resume Next
+    Set objLdap = GetObject("LDAP://rootDSE")
+    On Error GoTo 0
+
+    ' Was able to connect to Active Directory?
+    If (objLdap Is Nothing) Then
+        ' Error
+        Err.Raise 345, Description:="Unable to connect to Active Directory (AD) using LDAP!"
+        Exit Sub
+    End If
+    
+    ' Get the domain string from LDAP
+    strLdapDomain = objLdap.Get("defaultNamingContext")
+
+    ' Valid domain?
+    If (Trim(strLdapDomain) = "") Then
+        ' Error
+        Err.Raise 345, Description:="Unable to get the current domain using LDAP!"
+        Exit Sub
+    End If
+    
+    ' Free LDAP. 
+    ' The above statements were used to get the LDAP Domain name
+    ' which will be used below.
+    Set objLdap = Nothing
+    
+    ' Connect to ActiveDirectory using ADODB
+    Set objLdapConnection = CreateObject("ADODB.Connection")
+    Call objLdapConnection.Open("Provider=ADsDSOObject;")
+
+    ' Create command to queryActiveDirectory using LDAP
+    Set objLdapCommand = CreateObject("ADODB.Command")
+            
+    ' Set the query properties
+    With objLdapCommand
+        ' Set the connection
+        .ActiveConnection = objLdapConnection
+                
+        ' Search the AD recursively, starting at the root of the domain
+        .CommandText = "<LDAP://" & Trim(strLdapDomain) & ">;" & _
+            "(&(objectCategory=User)" & _
+            "(mailNickName=" & Trim(strUserId) & "));" & _
+            "name,employeeid,title,department,physicaldeliveryofficename;" & _
+            "subtree"
+    End With
+
+    ' Execute LDAP query
+    Set objLdapRecordSet = objLdapCommand.Execute
+
+    ' Found the user?
+    If (objLdapRecordSet.BOF Or objLdapRecordSet.EOF) Then
+        ' Information
+        Call MsgBox("The user with id '" & strUserId & "' does not exist!", vbExclamation, "Missing User")
+    Else
+        ' Multiple users might have the same short name.
+        ' This is because the username is re-used when a consultant
+        ' leaves the company.
+        ' Old users won't have an employee number.
+                
+        ' Walk through all users
+        Do While (Not objLdapRecordSet.EOF)
+            ' Get the employee number
+            objEmployeeNumber = objLdapRecordSet.Fields("employeeid")
+                    
+             ' Valid employee number?
+             If (objEmployeeNumber <> vbNull) Then
+                 ' Is number?
+                 If (IsNumeric(objEmployeeNumber)) Then
+                    ' Set the value
+                    ' [Your Code] = CLng(objEmployeeNumber)
+                 Else
+                     ' Error
+                     ' [Your Code] = ""
+                 End If
+
+                 ' Get the employee name
+                 objEmployeeName = objLdapRecordSet.Fields("name")
+        
+                 ' Valid employee name
+                 If (objEmployeeName <> vbNull) Then
+                    ' Set the value
+                    ' [Your Code] = Trim(CStr(objEmployeeName))
+                Else
+                    ' Error
+                    ' [Your Code] = ""
+                 End If
+
+                 ' Title
+                 objTitle = objLdapRecordSet.Fields("title")
+                        
+                 ' Valid title?
+                 If (objTitle <> vbNull) Then
+                    ' Set the title
+                    ' [Your Code] = Trim(CStr(objTitle))
+                 Else
+                    ' Clear the title
+                    ' [Your Code] = ""
+                 End If
+        
+                 ' Department
+                 objDepartment = objLdapRecordSet.Fields("department")
+                        
+                 ' Valid department?
+                 If (objDepartment <> vbNull) Then
+                    ' Set the department
+                    ' [Your Code] = Trim(CStr(objDepartment))
+                 Else
+                    ' Clear the department
+                    ' [Your Code] = ""
+                 End If
+        
+                 ' Workspace
+                 objWorkspace = objLdapRecordSet.Fields("physicaldeliveryofficename")
+                        
+                 ' Valid workspace?
+                 If (objWorkspace <> vbNull) Then
+                        ' Set the workspace
+                        ' [Your Code] = Trim(CStr(objWorkspace))
+                 Else
+                        ' Clear the workspace
+                        ' [Your Code] = ""
+                 End If
+
+                 ' We found the latest item we were looking for,
+                 ' so Exit loop
+                 Exit Do
+             End If
+                
+             ' Next record
+             Call objLdapRecordSet.MoveNext
+         Loop
+
+         ' Valid recordset?
+         If (Not objLdapRecordSet Is Nothing) Then
+            ' Close
+            Call objLdapRecordSet.Close
+                
+            ' Free memory
+            Set objLdapRecordSet = Nothing
+         End If
+    End If
+
+    ' Free memory
+    Set objLdapCommand = Nothing
+End Sub
